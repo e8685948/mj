@@ -80,22 +80,23 @@
     font-size:46px;font-weight:bold;color:#fff;
     text-shadow:0 0 6px #000,0 0 3px #000,1px 1px 2px #000;
     outline:none;border:none;
-    padding:0 10px;background:var(--chroma);
+    padding:0 16px;background:rgba(0,0,0,0.6);border-radius:10px;
     width:100%;height:66px;box-sizing:border-box;
-    display:block;text-align:center;
+    display:block;text-align:right;
     font-family:inherit;
     white-space:nowrap;overflow:hidden;
   }
-  .score-row{display:flex;align-items:center;justify-content:center;gap:0;margin-top:8px;
-    background:rgba(255,255,255,0.92);border:3px solid #6a3fd6;border-radius:10px;
+  .score-row{display:flex;align-items:center;justify-content:flex-end;gap:0;margin-top:8px;
+    background:rgba(0,0,0,0.6);border:3px solid #6a3fd6;border-radius:10px;
     padding:8px 20px;
   }
   .score{
     font-size:42px;font-weight:bold;outline:none;border:none;background:transparent;
-    width:5ch;min-width:95px;text-align:right;font-family:inherit;padding:0;
+    width:6ch;min-width:115px;text-align:right;font-family:inherit;padding:0;
+    color:#fff;
   }
   .score-suffix{
-    font-size:42px;font-weight:bold;user-select:none;
+    font-size:42px;font-weight:bold;user-select:none;color:#fff;
   }
   [contenteditable]:focus{background:#ffffcc;color:#000;text-shadow:none;}
   .name:focus{background:#ffffcc;color:#000;text-shadow:none;}
@@ -446,21 +447,32 @@ document.querySelectorAll('.name').forEach((el,idx)=>{
   });
 });
 
-// ---- 点数(直接編集。半角数字のみ、下2桁は常に00固定) ----
+// ---- 点数(直接編集。半角数字のみ、下2桁は常に00固定、表示はカンマ区切り) ----
+// 例:点数25000 → 表示は「25,0」(入力欄) + 「00」(固定表示) = 見た目「25,000」
+function formatScorePrefix(fullScore){
+  const full = Math.max(0, fullScore||0);
+  const formattedFull = full.toLocaleString('en-US'); // 例: "25,000"
+  const prefix = formattedFull.slice(0, -2); // 末尾2文字(常に"00")を除いた部分
+  return prefix === '' ? '0' : prefix;
+}
 document.querySelectorAll('.score').forEach((el,idx)=>{
   el.addEventListener('keydown',e=>{
     if(e.key==='Enter' && !e.isComposing && e.keyCode!==229){ e.preventDefault(); el.blur(); }
   });
   el.addEventListener('input',()=>{
-    // 半角数字以外(全角数字・記号など)を除去
+    // 半角数字以外(全角数字・記号・カンマなど)を除去
     const digits = el.value.replace(/[^0-9]/g,'');
     if(digits!==el.value) el.value = digits;
     state.players[idx].score = (parseInt(digits,10)||0) * 100;
     writeState();
   });
+  el.addEventListener('blur',()=>{
+    // 編集を終えたらカンマ区切り表示に整形する
+    el.value = formatScorePrefix(state.players[idx].score);
+  });
 });
 
-// ---- 起家(選手1人だけ選べる) ----
+// ---- 起家(選手1人だけ選べる。選ぶとその選手が東家になり、東1局から開始) ----
 const qijiaButtons = document.getElementById('qijiaButtons');
 state.players.forEach((p,idx)=>{
   const b=document.createElement('button');
@@ -468,6 +480,14 @@ state.players.forEach((p,idx)=>{
   b.textContent = p.name;
   b.addEventListener('click',()=>{
     state.qijiaIdx = idx;
+    state.round = "東1局";
+    state.players.forEach((pl,i)=>{
+      const offset = (i - idx + seats.length) % seats.length;
+      pl.seat = seats[offset]; // idx番目の選手が東家、以降は元の並び順で南家・西家・北家
+    });
+    state.kyotaku = 0;
+    state.honba = 0;
+    state.doraSlots = [];
     writeState(); render();
   });
   qijiaButtons.appendChild(b);
@@ -565,7 +585,7 @@ function render(){
       fitNameText(nameEl);
     }
     const scoreEl = el.querySelector('[data-field="score"]');
-    if(document.activeElement!==scoreEl) scoreEl.value = Math.floor((p.score||0)/100);
+    if(document.activeElement!==scoreEl) scoreEl.value = formatScorePrefix(p.score);
     const qijiaEl = el.querySelector('[data-field="qijia"]');
     qijiaEl.style.display = (i===state.qijiaIdx) ? '' : 'none';
   });
