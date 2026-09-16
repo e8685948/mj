@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>麻雀配信オーバーレイ</title>
+<style>
+  :root{
+    --chroma:#00ff00; /* OBSのクロマキー色に合わせて変更可 */
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;
+    background:#1e1e24;
+    font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;
+  }
+  #stage{position:relative;width:1920px;height:1080px;background:var(--chroma);overflow:hidden;}
+
+  /* ============ 左上グループ:局数・供託・本場・ドラ表示 ============ */
+  .top-group{
+    position:absolute;top:30px;left:30px;
+    display:flex;align-items:center;gap:18px;
+    background:rgba(0,0,0,0.78);border-radius:14px;
+    padding:10px 20px;
+    width:fit-content;
+  }
+  .round-box{
+    border:3px solid #000;border-radius:10px;background:#fff;
+    padding:6px 18px;font-size:32px;font-weight:bold;
+    cursor:pointer;user-select:none;
+  }
+  .counters{display:flex;flex-direction:column;gap:6px;}
+  .counter-row{display:flex;align-items:center;gap:8px;}
+  .stick-img{
+    width:60px;height:34px;object-fit:fill;display:block;
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.35));
+  }
+  .counter-num{
+    font-size:22px;min-width:22px;text-align:left;color:#fff;font-weight:bold;
+    cursor:pointer;user-select:none;
+  }
+
+  /* ドラ表示牌(最大4枚。ここは表示専用。選択は下の操作パネルで行う) */
+  .dora-area{display:flex;align-items:center;gap:6px;}
+  .dora-slot{
+    width:52px;height:70px;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));
+  }
+  .dora-slot img{width:100%;height:100%;object-fit:contain;display:block;}
+
+  /* ============ 下部グループ:4選手 ============ */
+  .bottom-group{
+    position:absolute;bottom:50px;left:0;width:100%;
+    display:flex;justify-content:space-around;
+  }
+  .player{
+    position:relative;
+    display:flex;flex-direction:column;align-items:center;
+    width:250px;
+  }
+  .seat-badge{
+    position:absolute;top:-16px;left:6px;
+    background:#3d2b1f;color:#fff;font-size:20px;font-weight:bold;
+    padding:3px 10px;border-radius:8px;
+    cursor:pointer;user-select:none;z-index:2;
+    box-shadow:0 2px 4px rgba(0,0,0,.35);
+  }
+  .seat-badge.dealer{background:#c0392b;}
+  .name{
+    font-size:46px;font-weight:bold;color:#fff;
+    text-shadow:0 0 6px #000,0 0 3px #000,1px 1px 2px #000;
+    outline:none;cursor:text;
+    padding:0 10px;background:var(--chroma);
+    width:100%;height:66px;
+    display:flex;align-items:center;justify-content:center;
+    white-space:nowrap;overflow:hidden;
+  }
+  .score-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;
+    background:rgba(255,255,255,0.92);border:3px solid #6a3fd6;border-radius:10px;
+    padding:8px 20px;
+  }
+  .score{
+    font-size:42px;font-weight:bold;outline:none;cursor:text;min-width:130px;text-align:center;
+  }
+  [contenteditable]:focus{background:#ffffcc;color:#000;text-shadow:none;}
+
+  /* ============================================================
+     操作パネル(グリーンバックの下。OBSの取り込みを1920x1080に
+     しておけばここは配信に映りません)
+     ============================================================ */
+  #controlPanel{padding:22px;color:#eee;background:#1e1e24;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;}
+  #controlPanel h1{font-size:18px;margin:0 0 16px;color:#fff;}
+  #controlPanel h2{font-size:14px;margin:0 0 10px;color:#bbb;font-weight:normal;border-bottom:1px solid #444;padding-bottom:6px;}
+  #controlPanel .panel{background:#2a2a32;border-radius:12px;padding:14px 18px;margin-bottom:16px;}
+  #controlPanel button{
+    font-size:14px;padding:6px 14px;border-radius:8px;border:1px solid #555;
+    background:#3a3a44;color:#eee;cursor:pointer;
+  }
+  #controlPanel button:hover{background:#48485a;}
+  .dora-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;max-width:600px;}
+  .dora-grid button{
+    padding:4px;background:#fff;border-radius:6px;border:2px solid transparent;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .dora-grid button img{width:32px;height:auto;display:block;}
+  .dora-grid button.selected{border-color:#5b7fd6;}
+  .dora-selected{display:flex;gap:8px;min-height:56px;flex-wrap:wrap;}
+  .dora-selected button{
+    padding:3px;background:#fff;border-radius:6px;border:2px solid #7a2b2b;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .dora-selected button img{width:34px;height:auto;display:block;}
+  .dora-selected .empty-note{color:#777;font-size:13px;}
+  .dora-note{font-size:12px;color:#999;margin-bottom:10px;}
+  #resetBtn{background:#7a2b2b;border-color:#7a2b2b;}
+  #resetBtn:hover{background:#933535;}
+  #resetBtn.armed{background:#e0a02b;border-color:#e0a02b;color:#000;}
+  .key-flash{outline:3px solid #e0a02b !important;outline-offset:2px;}
+  .shortcut-table{border-collapse:collapse;font-size:14px;}
+  .shortcut-table td{padding:5px 16px 5px 0;border-bottom:1px solid #383842;}
+  .shortcut-table td:first-child{color:#ddd;}
+  .shortcut-table td:last-child{color:#8fb0ff;font-family:monospace;}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <div class="top-group">
+    <div class="round-box" id="roundBox" title="クリックで次局(家も回ります)/右クリックで前局">東1局</div>
+
+    <div class="counters">
+      <div class="counter-row">
+        <img class="stick-img" id="kyotakuImg" alt="供託(千点棒)">
+        <span class="counter-num" id="kyotakuNum" title="クリックで+1/右クリックで-1">0</span>
+      </div>
+      <div class="counter-row">
+        <img class="stick-img" id="honbaImg" alt="本場(百点棒)">
+        <span class="counter-num" id="honbaNum" title="クリックで+1/右クリックで-1">0</span>
+      </div>
+    </div>
+
+    <div class="dora-area" id="doraArea"></div>
+  </div>
+
+  <div class="bottom-group" id="bottomGroup">
+    <div class="player" data-idx="0">
+      <div class="seat-badge" data-field="seat">東家</div>
+      <div class="name" data-field="name" contenteditable="true">選手名</div>
+      <div class="score-row">
+        <span class="score" data-field="score" contenteditable="true">25000</span>
+      </div>
+    </div>
+    <div class="player" data-idx="1">
+      <div class="seat-badge" data-field="seat">南家</div>
+      <div class="name" data-field="name" contenteditable="true">選手名</div>
+      <div class="score-row">
+        <span class="score" data-field="score" contenteditable="true">25000</span>
+      </div>
+    </div>
+    <div class="player" data-idx="2">
+      <div class="seat-badge" data-field="seat">西家</div>
+      <div class="name" data-field="name" contenteditable="true">選手名</div>
+      <div class="score-row">
+        <span class="score" data-field="score" contenteditable="true">25000</span>
+      </div>
+    </div>
+    <div class="player" data-idx="3">
+      <div class="seat-badge" data-field="seat">北家</div>
+      <div class="name" data-field="name" contenteditable="true">選手名</div>
+      <div class="score-row">
+        <span class="score" data-field="score" contenteditable="true">25000</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="controlPanel">
+  <h1>▼操作パネル(OBSの取り込みを1920×1080にしていればここは配信に映りません)</h1>
+
+  <div class="panel">
+    <h2>ドラ表示牌(最大4枚。同じ牌を複数回選んでもOK)</h2>
+    <div class="dora-note">下の牌をクリックすると配信画面に追加されます(最大4枚)。</div>
+    <div class="dora-grid" id="doraGrid"></div>
+    <h2 style="margin-top:16px;">選択中のドラ(クリックで1枚だけ削除)</h2>
+    <div class="dora-selected" id="doraSelected"></div>
+    <button id="doraClearAllBtn" style="margin-top:10px;">ドラを全て消す</button>
+  </div>
+
+  <div class="panel">
+    <h2>リセット</h2>
+    <button id="resetBtn" title="点数・名前・供託・本場・ドラを初期状態に戻します(Command+Deleteでも実行できます)">リセット</button>
+  </div>
+
+  <div class="panel">
+    <h2>ショートカットキー一覧</h2>
+    <table class="shortcut-table">
+      <tr><td>リセット</td><td>Command + Delete</td></tr>
+      <tr><td>次局へ</td><td>Command + →</td></tr>
+      <tr><td>前局へ</td><td>Command + ←</td></tr>
+      <tr><td>本場 +1</td><td>Command + ↑ + H</td></tr>
+      <tr><td>本場 -1</td><td>Command + ↓ + H</td></tr>
+      <tr><td>供託 +1</td><td>Command + ↑ + K</td></tr>
+      <tr><td>供託 -1</td><td>Command + ↓ + K</td></tr>
+    </table>
+  </div>
+</div>
+
+<script>
+const TILE_BASE = "https://e8685948.github.io/mj/tiles/";
+function tileUrl(file){ return TILE_BASE + encodeURIComponent(file); }
+
+const doraTiles = [
+  {file:"1m.png",label:"一萬"},{file:"2m.png",label:"二萬"},{file:"3m.png",label:"三萬"},
+  {file:"4m.png",label:"四萬"},{file:"5m.png",label:"五萬"},{file:"6m.png",label:"六萬"},
+  {file:"7m.png",label:"七萬"},{file:"8m.png",label:"八萬"},{file:"9m.png",label:"九萬"},
+  {file:"1p.png",label:"一筒"},{file:"2p.png",label:"二筒"},{file:"3p.png",label:"三筒"},
+  {file:"4p.png",label:"四筒"},{file:"5p.png",label:"五筒"},{file:"6p.png",label:"六筒"},
+  {file:"7p.png",label:"七筒"},{file:"8p.png",label:"八筒"},{file:"9p.png",label:"九筒"},
+  {file:"1s.png",label:"一索"},{file:"2s.png",label:"二索"},{file:"3s.png",label:"三索"},
+  {file:"4s.png",label:"四索"},{file:"5s.png",label:"五索"},{file:"6s.png",label:"六索"},
+  {file:"7s.png",label:"七索"},{file:"8s.png",label:"八索"},{file:"9s.png",label:"九索"},
+  {file:"東.png",label:"東"},{file:"南.png",label:"南"},{file:"西.png",label:"西"},{file:"北.png",label:"北"},
+  {file:"白.png",label:"白"},{file:"発.png",label:"發"},{file:"中.png",label:"中"}
+];
+
+const rounds=["東1局","東2局","東3局","東4局","南1局","南2局","南3局","南4局"];
+const seats=["東家","南家","西家","北家"];
+const MAX_DORA = 4;
+const STATE_KEY = "mj_full_state";
+
+function makeDefaultState(){
+  return {
+    round: "東1局",
+    kyotaku: 0,
+    honba: 0,
+    doraSlots: [], // 最大4枚。ファイル名の配列
+    players: [
+      {seat:"東家", name:"選手名", score:25000},
+      {seat:"南家", name:"選手名", score:25000},
+      {seat:"西家", name:"選手名", score:25000},
+      {seat:"北家", name:"選手名", score:25000}
+    ]
+  };
+}
+
+// ---- このファイルを開いている他の画面(ブラウザソース/カスタムブラウザDock)と
+//      localStorage経由で状態を共有する ----
+function readStateFromStorage(){
+  try{
+    const raw = localStorage.getItem(STATE_KEY);
+    if(!raw) return null;
+    return Object.assign(makeDefaultState(), JSON.parse(raw));
+  }catch(e){ return null; }
+}
+function writeState(){
+  try{ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+let state = readStateFromStorage() || makeDefaultState();
+
+// ---- 初期画像セット ----
+document.getElementById('kyotakuImg').src = tileUrl("千点棒.png");
+document.getElementById('honbaImg').src = tileUrl("百点棒.png");
+
+// ---- 局(クリックで次局/右クリックで前局。家も一緒に回る) ----
+const roundBox=document.getElementById('roundBox');
+function goNextRound(){
+  const idx = rounds.indexOf(state.round);
+  state.round = rounds[(idx+1) % rounds.length];
+  state.players.forEach(p=>{
+    const sIdx = seats.indexOf(p.seat);
+    p.seat = seats[(sIdx-1+seats.length) % seats.length]; // 北→西→南→東の順
+  });
+  state.kyotaku = 0;
+  state.honba = 0;
+  state.doraSlots = [];
+  writeState(); render();
+}
+function goPrevRound(){
+  const idx = rounds.indexOf(state.round);
+  state.round = rounds[(idx-1+rounds.length) % rounds.length];
+  state.players.forEach(p=>{
+    const sIdx = seats.indexOf(p.seat);
+    p.seat = seats[(sIdx+1) % seats.length]; // クリック時と逆回転
+  });
+  state.kyotaku = 0;
+  state.honba = 0;
+  state.doraSlots = [];
+  writeState(); render();
+}
+roundBox.addEventListener('click', goNextRound);
+roundBox.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  goPrevRound();
+});
+
+// ---- 供託・本場(クリックで+1、右クリックで-1) ----
+function changeNum(field,delta){
+  state[field]=Math.max(0,(parseInt(state[field],10)||0)+delta);
+  writeState(); render();
+}
+['kyotaku','honba'].forEach(field=>{
+  const el=document.getElementById(field+'Num');
+  el.addEventListener('click',()=>changeNum(field,1));
+  el.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    changeNum(field,-1);
+  });
+});
+
+// ---- ドラ表示牌(最大4枚。配信画面側は表示専用) ----
+const doraArea=document.getElementById('doraArea');
+
+function renderDora(){
+  doraArea.innerHTML='';
+  state.doraSlots.forEach(file=>{
+    const div=document.createElement('div');
+    div.className='dora-slot';
+    const img=document.createElement('img');
+    img.src=tileUrl(file);
+    div.appendChild(img);
+    doraArea.appendChild(div);
+  });
+}
+
+// ---- 操作パネル:ドラ選択グリッド(クリックするたびに追加。同じ牌の重複追加も可) ----
+const doraGrid=document.getElementById('doraGrid');
+const doraSelected=document.getElementById('doraSelected');
+doraTiles.forEach(t=>{
+  const b=document.createElement('button');
+  const img=document.createElement('img');
+  img.src=tileUrl(t.file);
+  img.alt=t.label;
+  b.appendChild(img);
+  b.title=t.label;
+  b.dataset.file=t.file;
+  b.addEventListener('click',()=>{
+    if(state.doraSlots.length>=MAX_DORA) return;
+    state.doraSlots.push(t.file);
+    writeState(); render();
+  });
+  doraGrid.appendChild(b);
+});
+
+function renderDoraSelected(){
+  doraSelected.innerHTML='';
+  if(state.doraSlots.length===0){
+    const span=document.createElement('span');
+    span.className='empty-note';
+    span.textContent='(まだ選択されていません)';
+    doraSelected.appendChild(span);
+    return;
+  }
+  state.doraSlots.forEach((file,slotIdx)=>{
+    const b=document.createElement('button');
+    const img=document.createElement('img');
+    img.src=tileUrl(file);
+    b.appendChild(img);
+    const t=doraTiles.find(t=>t.file===file);
+    b.title=(t?t.label:file)+"(クリックで削除)";
+    b.addEventListener('click',()=>{
+      state.doraSlots.splice(slotIdx,1);
+      writeState(); render();
+    });
+    doraSelected.appendChild(b);
+  });
+}
+
+document.getElementById('doraClearAllBtn').addEventListener('click',()=>{
+  state.doraSlots=[];
+  writeState(); render();
+});
+
+// ---- 家バッジ(クリック/右クリックで個別に切替) ----
+document.querySelectorAll('.seat-badge').forEach((badge,idx)=>{
+  badge.addEventListener('click',()=>{
+    const sIdx=seats.indexOf(state.players[idx].seat);
+    state.players[idx].seat=seats[(sIdx+1)%seats.length];
+    writeState(); render();
+  });
+  badge.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    const sIdx=seats.indexOf(state.players[idx].seat);
+    state.players[idx].seat=seats[(sIdx-1+seats.length)%seats.length];
+    writeState(); render();
+  });
+});
+
+// ---- 名前(直接編集) ----
+document.querySelectorAll('.name').forEach((el,idx)=>{
+  el.addEventListener('input',()=>{
+    state.players[idx].name=el.textContent;
+    fitNameText(el);
+  });
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
+  });
+});
+
+// ---- 点数(直接編集) ----
+document.querySelectorAll('.score').forEach((el,idx)=>{
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
+  });
+  el.addEventListener('blur',()=>{
+    state.players[idx].score=parseInt(el.textContent,10)||0;
+    writeState(); render();
+  });
+});
+
+// ---- リセット ----
+const resetBtn = document.getElementById('resetBtn');
+function doReset(){
+  state = makeDefaultState();
+  writeState(); render();
+}
+resetBtn.addEventListener('click', doReset);
+
+// ---- キーボードショートカット ----
+// (名前・点数などを直接編集中は誤動作しないよう無効にする)
+const heldKeys = new Set();
+const firedCombos = new Set();
+
+function isCmd(e){ return e.metaKey || e.ctrlKey; }
+
+// 押されているキーの組み合わせから、まだ発火していないコンボを実行する
+function checkCombos(e){
+  const cmd = isCmd(e);
+
+  const combos = [
+    { name:'reset', active: cmd && (heldKeys.has('Delete')||heldKeys.has('Backspace')), action: doReset, flash: resetBtn },
+    { name:'nextRound', active: cmd && heldKeys.has('ArrowRight') && !heldKeys.has('KeyH') && !heldKeys.has('KeyK'), action: goNextRound, flash: roundBox },
+    { name:'prevRound', active: cmd && heldKeys.has('ArrowLeft') && !heldKeys.has('KeyH') && !heldKeys.has('KeyK'), action: goPrevRound, flash: roundBox },
+    { name:'honbaPlus', active: cmd && heldKeys.has('ArrowUp') && heldKeys.has('KeyH'), action: ()=>changeNum('honba',1), flash: document.getElementById('honbaNum') },
+    { name:'honbaMinus', active: cmd && heldKeys.has('ArrowDown') && heldKeys.has('KeyH'), action: ()=>changeNum('honba',-1), flash: document.getElementById('honbaNum') },
+    { name:'kyotakuPlus', active: cmd && heldKeys.has('ArrowUp') && heldKeys.has('KeyK'), action: ()=>changeNum('kyotaku',1), flash: document.getElementById('kyotakuNum') },
+    { name:'kyotakuMinus', active: cmd && heldKeys.has('ArrowDown') && heldKeys.has('KeyK'), action: ()=>changeNum('kyotaku',-1), flash: document.getElementById('kyotakuNum') },
+  ];
+
+  combos.forEach(c=>{
+    if(c.active && !firedCombos.has(c.name)){
+      firedCombos.add(c.name);
+      e.preventDefault();
+      c.action();
+      if(c.flash){
+        c.flash.classList.add('key-flash');
+        setTimeout(()=>c.flash.classList.remove('key-flash'), 250);
+      }
+    }
+    if(!c.active){
+      firedCombos.delete(c.name);
+    }
+  });
+}
+
+document.addEventListener('keydown',(e)=>{
+  const ae = document.activeElement;
+  if(ae && ae.isContentEditable) return; // 名前・点数などの編集中は無効
+
+  heldKeys.add(e.code);
+  // Command+Delete等、ブラウザ標準動作(戻る/進む等)を止めるため、対象コードは先にpreventDefaultしておく
+  if(isCmd(e) && ['Delete','Backspace','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyH','KeyK'].includes(e.code)){
+    e.preventDefault();
+  }
+  checkCombos(e);
+});
+document.addEventListener('keyup',(e)=>{
+  heldKeys.delete(e.code);
+  checkCombos(e);
+});
+window.addEventListener('blur',()=>{ heldKeys.clear(); firedCombos.clear(); });
+
+// ---- 名前が長い場合にフォントサイズを自動縮小 ----
+function fitNameText(el){
+  const maxFont=46, minFont=20;
+  el.style.fontSize=maxFont+"px";
+  let fontSize=maxFont;
+  while(el.scrollWidth>el.clientWidth && fontSize>minFont){
+    fontSize-=2;
+    el.style.fontSize=fontSize+"px";
+  }
+}
+
+// ---- 全体描画 ----
+function render(){
+  roundBox.textContent = state.round;
+  document.getElementById('kyotakuNum').textContent = state.kyotaku;
+  document.getElementById('honbaNum').textContent = state.honba;
+  renderDora();
+  renderDoraSelected();
+
+  document.querySelectorAll('#bottomGroup .player').forEach((el,i)=>{
+    const p = state.players[i];
+    const seatEl = el.querySelector('[data-field="seat"]');
+    if(document.activeElement!==seatEl) seatEl.textContent = p.seat;
+    seatEl.classList.toggle('dealer', p.seat==='東家');
+    const nameEl = el.querySelector('[data-field="name"]');
+    if(document.activeElement!==nameEl){
+      nameEl.textContent = p.name;
+    }
+    fitNameText(nameEl);
+    const scoreEl = el.querySelector('[data-field="score"]');
+    if(document.activeElement!==scoreEl) scoreEl.textContent = p.score;
+  });
+}
+
+render();
+
+// ---- 他の画面(ブラウザソース/カスタムブラウザDockでこの同じファイルを開いている
+//      もう一方)からの変更を受け取って反映する ----
+window.addEventListener('storage',(e)=>{
+  if(e.key===STATE_KEY){
+    const fresh = readStateFromStorage();
+    if(fresh){ state = fresh; render(); }
+  }
+});
+// 念のため定期的にも同期(環境によってstorageイベントが届かない場合の保険)
+let lastRawState = localStorage.getItem(STATE_KEY);
+setInterval(()=>{
+  const raw = localStorage.getItem(STATE_KEY);
+  if(raw!==lastRawState){
+    lastRawState = raw;
+    const fresh = readStateFromStorage();
+    if(fresh){ state = fresh; render(); }
+  }
+}, 500);
+</script>
+</body>
+</html>
