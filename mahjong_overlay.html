@@ -59,14 +59,23 @@
     display:flex;flex-direction:column;align-items:center;
     width:250px;
   }
+  .badge-row{
+    position:absolute;top:-34px;left:6px;
+    display:flex;gap:6px;z-index:2;
+  }
   .seat-badge{
-    position:absolute;top:-16px;left:6px;
     background:#3d2b1f;color:#fff;font-size:20px;font-weight:bold;
     padding:3px 10px;border-radius:8px;
-    user-select:none;z-index:2;
+    user-select:none;
     box-shadow:0 2px 4px rgba(0,0,0,.35);
   }
   .seat-badge.dealer{background:#c0392b;}
+  .qijia-badge{
+    background:#b8860b;color:#fff;font-size:20px;font-weight:bold;
+    padding:3px 10px;border-radius:8px;
+    user-select:none;
+    box-shadow:0 2px 4px rgba(0,0,0,.35);
+  }
   .name{
     font-size:46px;font-weight:bold;color:#fff;
     text-shadow:0 0 6px #000,0 0 3px #000,1px 1px 2px #000;
@@ -77,15 +86,20 @@
     font-family:inherit;
     white-space:nowrap;overflow:hidden;
   }
-  .score-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;
+  .score-row{display:flex;align-items:center;justify-content:center;gap:0;margin-top:8px;
     background:rgba(255,255,255,0.92);border:3px solid #6a3fd6;border-radius:10px;
     padding:8px 20px;
   }
   .score{
-    font-size:42px;font-weight:bold;outline:none;cursor:text;min-width:130px;text-align:center;
+    font-size:42px;font-weight:bold;outline:none;border:none;background:transparent;
+    width:5ch;min-width:95px;text-align:right;font-family:inherit;padding:0;
+  }
+  .score-suffix{
+    font-size:42px;font-weight:bold;user-select:none;
   }
   [contenteditable]:focus{background:#ffffcc;color:#000;text-shadow:none;}
   .name:focus{background:#ffffcc;color:#000;text-shadow:none;}
+  .score:focus{background:#ffffcc;}
 
   /* ============================================================
      操作パネル(グリーンバックの下。OBSの取り込みを1920x1080に
@@ -95,11 +109,13 @@
   #controlPanel h1{font-size:18px;margin:0 0 16px;color:#fff;}
   #controlPanel h2{font-size:14px;margin:0 0 10px;color:#bbb;font-weight:normal;border-bottom:1px solid #444;padding-bottom:6px;}
   #controlPanel .panel{background:#2a2a32;border-radius:12px;padding:14px 18px;margin-bottom:16px;}
+  #controlPanel .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   #controlPanel button{
     font-size:14px;padding:6px 14px;border-radius:8px;border:1px solid #555;
     background:#3a3a44;color:#eee;cursor:pointer;
   }
   #controlPanel button:hover{background:#48485a;}
+  #controlPanel button.active{background:#5b7fd6;border-color:#5b7fd6;}
   .dora-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;max-width:600px;}
   .dora-grid button{
     padding:4px;background:#fff;border-radius:6px;border:2px solid transparent;
@@ -148,31 +164,43 @@
 
   <div class="bottom-group" id="bottomGroup">
     <div class="player" data-idx="0">
-      <div class="seat-badge" data-field="seat">東家</div>
+      <div class="badge-row">
+        <div class="seat-badge" data-field="seat">東家</div>
+        <div class="qijia-badge" data-field="qijia" style="display:none;">起家</div>
+      </div>
       <input class="name" data-field="name" type="text" value="選手名">
       <div class="score-row">
-        <span class="score" data-field="score" contenteditable="true">25000</span>
+        <input class="score" data-field="score" type="text" inputmode="numeric" value="250"><span class="score-suffix">00</span>
       </div>
     </div>
     <div class="player" data-idx="1">
-      <div class="seat-badge" data-field="seat">南家</div>
+      <div class="badge-row">
+        <div class="seat-badge" data-field="seat">南家</div>
+        <div class="qijia-badge" data-field="qijia" style="display:none;">起家</div>
+      </div>
       <input class="name" data-field="name" type="text" value="選手名">
       <div class="score-row">
-        <span class="score" data-field="score" contenteditable="true">25000</span>
+        <input class="score" data-field="score" type="text" inputmode="numeric" value="250"><span class="score-suffix">00</span>
       </div>
     </div>
     <div class="player" data-idx="2">
-      <div class="seat-badge" data-field="seat">西家</div>
+      <div class="badge-row">
+        <div class="seat-badge" data-field="seat">西家</div>
+        <div class="qijia-badge" data-field="qijia" style="display:none;">起家</div>
+      </div>
       <input class="name" data-field="name" type="text" value="選手名">
       <div class="score-row">
-        <span class="score" data-field="score" contenteditable="true">25000</span>
+        <input class="score" data-field="score" type="text" inputmode="numeric" value="250"><span class="score-suffix">00</span>
       </div>
     </div>
     <div class="player" data-idx="3">
-      <div class="seat-badge" data-field="seat">北家</div>
+      <div class="badge-row">
+        <div class="seat-badge" data-field="seat">北家</div>
+        <div class="qijia-badge" data-field="qijia" style="display:none;">起家</div>
+      </div>
       <input class="name" data-field="name" type="text" value="選手名">
       <div class="score-row">
-        <span class="score" data-field="score" contenteditable="true">25000</span>
+        <input class="score" data-field="score" type="text" inputmode="numeric" value="250"><span class="score-suffix">00</span>
       </div>
     </div>
   </div>
@@ -189,6 +217,12 @@
     <h2 style="margin-top:16px;">選択中のドラ(クリックで1枚だけ削除)</h2>
     <div class="dora-selected" id="doraSelected"></div>
     <button id="doraClearAllBtn" style="margin-top:10px;">ドラを全て消す</button>
+  </div>
+
+  <div class="panel">
+    <h2>起家</h2>
+    <div class="dora-note">「起家」を表示する選手を1人だけ選べます。</div>
+    <div class="row" id="qijiaButtons"></div>
   </div>
 
   <div class="panel">
@@ -239,6 +273,7 @@ function makeDefaultState(){
     kyotaku: 0,
     honba: 0,
     doraSlots: [], // 最大4枚。ファイル名の配列
+    qijiaIdx: 0, // 起家(最初の親)。プレイヤー配列のインデックス(0〜3)
     players: [
       {seat:"東家", name:"選手名", score:25000},
       {seat:"南家", name:"選手名", score:25000},
@@ -392,26 +427,50 @@ document.getElementById('doraClearAllBtn').addEventListener('click',()=>{
 // ---- 家バッジは表示専用(局ボタンの操作でのみ変わる) ----
 
 // ---- 名前(直接編集) ----
+// 日本語入力(IME)中に毎キー入力でフォントサイズを変更すると、変換中の文字が
+// 乱れて二重入力のように見えることがあるため、リサイズ処理は少し間を置いてから行う
 document.querySelectorAll('.name').forEach((el,idx)=>{
+  let resizeTimer = null;
   el.addEventListener('input',()=>{
     state.players[idx].name=el.value;
     writeState();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>fitNameText(el), 200);
+  });
+  el.addEventListener('blur',()=>{
+    clearTimeout(resizeTimer);
     fitNameText(el);
   });
   el.addEventListener('keydown',e=>{
-    if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
+    if(e.key==='Enter' && !e.isComposing && e.keyCode!==229){ e.preventDefault(); el.blur(); }
   });
 });
 
-// ---- 点数(直接編集) ----
+// ---- 点数(直接編集。半角数字のみ、下2桁は常に00固定) ----
 document.querySelectorAll('.score').forEach((el,idx)=>{
   el.addEventListener('keydown',e=>{
-    if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
+    if(e.key==='Enter' && !e.isComposing && e.keyCode!==229){ e.preventDefault(); el.blur(); }
   });
-  el.addEventListener('blur',()=>{
-    state.players[idx].score=parseInt(el.textContent,10)||0;
+  el.addEventListener('input',()=>{
+    // 半角数字以外(全角数字・記号など)を除去
+    const digits = el.value.replace(/[^0-9]/g,'');
+    if(digits!==el.value) el.value = digits;
+    state.players[idx].score = (parseInt(digits,10)||0) * 100;
+    writeState();
+  });
+});
+
+// ---- 起家(選手1人だけ選べる) ----
+const qijiaButtons = document.getElementById('qijiaButtons');
+state.players.forEach((p,idx)=>{
+  const b=document.createElement('button');
+  b.dataset.idx = idx;
+  b.textContent = p.name;
+  b.addEventListener('click',()=>{
+    state.qijiaIdx = idx;
     writeState(); render();
   });
+  qijiaButtons.appendChild(b);
 });
 
 // ---- リセット ----
@@ -503,10 +562,20 @@ function render(){
     const nameEl = el.querySelector('[data-field="name"]');
     if(document.activeElement!==nameEl){
       nameEl.value = p.name;
+      fitNameText(nameEl);
     }
-    fitNameText(nameEl);
     const scoreEl = el.querySelector('[data-field="score"]');
-    if(document.activeElement!==scoreEl) scoreEl.textContent = p.score;
+    if(document.activeElement!==scoreEl) scoreEl.value = Math.floor((p.score||0)/100);
+    const qijiaEl = el.querySelector('[data-field="qijia"]');
+    qijiaEl.style.display = (i===state.qijiaIdx) ? '' : 'none';
+  });
+
+  [...qijiaButtons.children].forEach(b=>{
+    const idx = Number(b.dataset.idx);
+    if(document.activeElement !== document.querySelectorAll('.name')[idx]){
+      b.textContent = state.players[idx].name;
+    }
+    b.classList.toggle('active', idx===state.qijiaIdx);
   });
 }
 
